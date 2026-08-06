@@ -11,16 +11,16 @@ class CheckoutService:
         cliente = request.POST.get("cliente")
         direccion = request.POST.get("direccion")
         total = request.POST.get("total")
-        if not cliente or not direccion or not total:
-            return {"error": "Todos los campos son obligatorios"}
-
-        pedido = (
-            PedidoBuilder()
-            .set_cliente(cliente)
-            .set_direccion(direccion)
-            .set_total(total)
-            .build()
-        )
+        try:
+            pedido = (
+                PedidoBuilder()
+                .set_cliente(cliente)
+                .set_direccion(direccion)
+                .set_total(total)
+                .build()
+            )
+        except ValueError as e:
+            return {"error": str(e)}
 
         pedido.save()
 

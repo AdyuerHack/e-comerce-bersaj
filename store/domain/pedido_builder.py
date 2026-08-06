@@ -26,7 +26,13 @@ class PedidoBuilder:
         if not self.pedido.direccion:
             raise ValueError("La dirección es obligatoria.")
 
-        if float(self.pedido.total) <= 0:
-            raise ValueError("El total debe ser mayor que cero.")
+        if not self.pedido.total:
+            raise ValueError("El total es obligatorio.")
+
+        try:
+            if float(self.pedido.total) <= 0:
+                raise ValueError("El total debe ser mayor que cero.")
+        except (ValueError, TypeError):
+            raise ValueError("El total debe ser un número válido.")
 
         return self.pedido
