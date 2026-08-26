@@ -1,6 +1,9 @@
 from .domain.pedido_builder import PedidoBuilder
 from .models import Cliente, DireccionEnvio, ItemPedido
-
+from .exceptions import (
+    RecursoNoEncontradoError,
+    ConflictoInventarioError,
+)
 
 class CheckoutService:
 
@@ -31,6 +34,8 @@ class CheckoutService:
                 .calcular_envio_y_total()
             )
             pedido, items_data = builder.build()
+        except (RecursoNoEncontradoError, ConflictoInventarioError):
+            raise
         except ValueError as e:
             return {"error": str(e)}
 
