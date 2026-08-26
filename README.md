@@ -34,6 +34,46 @@ store/
 | **Factory Method** | `NotificationFactory` | Decidir en tiempo de ejecución qué implementación de notificación usar, según la variable de entorno `EMAIL_MODE`. |
 | **Inyección de dependencias** | `CheckoutService` | Recibir el servicio de notificación por constructor en lugar de crearlo internamente, facilitando las pruebas y el desacoplamiento. |
 
+## ¿Por qué organizamos el proyecto así?
+
+La estructura base es la típica de Django (un proyecto `ecommerce/`
+con la configuración, y una app `store/` adentro), pero dentro de
+`store/` decidimos no meter todo en `models.py` y `views.py` como
+viene por defecto, porque con los patrones que nos pidieron (Builder,
+Factory, Service Layer) eso se iba a volver un caos rápido.
+
+## La idea detrás de cada carpeta:
+
+- **`models.py`** lo dejamos solo para las clases que realmente se
+  guardan en la base de datos, con sus validaciones básicas (que el
+  precio no sea negativo, que no se pueda vender más stock del que
+  hay, etc.). Nada más.
+- **`domain/`** es para el `PedidoBuilder`. No lo pusimos en
+  `models.py` porque no es una tabla, es solo la lógica que arma el
+  pedido paso a paso antes de guardarlo — nos pareció más limpio
+  separarlo.
+- **`infra/`** agrupa todo lo que tiene que ver con servicios
+  externos (mandar el WhatsApp o el correo). Lo aislamos detrás de
+  una interfaz y una Factory para que, si un día cambiamos de
+  proveedor de notificaciones, solo tocamos esta carpeta y no
+  rompemos nada más.
+- **`services.py`** es básicamente donde armamos todo el flujo de
+  "crear un pedido": valida, arma el pedido con el Builder, descuenta
+  stock, notifica. Esto lo hicimos aparte de las vistas justo por lo
+  que pide la rúbrica: nada de lógica de negocio metida en
+  `views.py`.
+- **`views.py`** quedó bien simple a propósito, solo recibe el
+  request y le pasa la pelota al service.
+
+No creamos apps nuevas de Django (tipo `pedidos/`, `productos/`, etc.)
+porque para el tamaño actual del proyecto nos pareció innecesario
+complicarlo — con separar por carpetas dentro de la misma app
+ya se cumple con la idea de tener las responsabilidades bien
+divididas, y si más adelante el proyecto crece, esta base ya nos
+deja el camino fácil para pasar a Django Rest Framework sin tener
+que mover el dominio ni los servicios.
+
+
 ## Flujo del proceso de compra
 
 1. El cliente envía una solicitud `POST /checkout/` con los datos `cliente`, `direccion` y `total`.
