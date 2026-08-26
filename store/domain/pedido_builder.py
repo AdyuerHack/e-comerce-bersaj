@@ -1,5 +1,10 @@
 from decimal import Decimal
 
+from ..exceptions import (
+    RecursoNoEncontradoError,
+    ConflictoInventarioError,
+)
+
 from store.models import Pedido, Talla
 
 COSTO_ENVIO_BASE = Decimal("8000.00")
@@ -26,10 +31,12 @@ class PedidoBuilder:
         try:
             talla = Talla.objects.select_related("producto").get(pk=talla_id)
         except Talla.DoesNotExist:
-            raise ValueError(f"La talla con id {talla_id} no existe.")
+            raise RecursoNoEncontradoError(
+                f"La talla con id {talla_id} no existe."
+            )
 
         if not talla.tiene_stock(cantidad):
-            raise ValueError(
+            raise ConflictoInventarioError(
                 f"Stock insuficiente para {talla}. Disponible: {talla.stock}."
             )
 
