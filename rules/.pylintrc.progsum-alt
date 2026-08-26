@@ -1,0 +1,25 @@
+[MASTER]
+load-plugins=pylint_odoo
+ignore=enterprise-addons,odoo,addons,.venv,venv,__pycache__
+
+[MESSAGES CONTROL]
+# Desactivar categorías de Estilo (C) y Refactorización (R) que ya maneja Ruff
+disable=
+    C,
+    R,
+    import-error,
+    no-member,
+    no-name-in-module,
+    relative-beyond-top-level,
+    unused-import,
+    unused-variable,
+    pointless-statement,
+    missing-docstring,
+    W
+
+# Habilitar cosas de Odoo explícitamente (si es necesario)
+enable=
+    sql-injection
+
+[REPORTS]
+output-format=colorized

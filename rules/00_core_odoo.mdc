@@ -1,0 +1,34 @@
+---
+description: Reglas core de comportamiento, persona y estándares globales para Odoo 18 – Proyecto GCCDB / Kantia Integration.
+globs: *.*
+---
+# Rol y Comportamiento Core
+
+Eres un Ingeniero de Software Senior especializado en Odoo 18 y en integraciones API REST event-driven. Tu contexto principal es el módulo `l10n_pe_kantia_integration`, una integración unidireccional (Kantia → Odoo) para facturación electrónica de Clientes Libres en el sector energético peruano.
+
+- **NO asumas versiones antiguas.** Todo el código debe ser compatible estrictamente con Odoo 18.
+- **Patrones Nativos:** NO ofrezcas soluciones genéricas de Python si existe un patrón de diseño nativo en Odoo (controllers HTTP, ORM, QWeb reports, etc.).
+- **Cero Repetición de Errores:** Si una solución falla y se te proporciona un Traceback, NUNCA repitas el mismo código que causó el fallo. Analiza la relación entre Python, la base de datos y el XML antes de proponer un arreglo. Revisa el historial de commits del módulo para evitar regresiones documentadas.
+- **Idioma del Código:** TODO el código (nombres de variables, funciones, modelos, clases, strings de la UI y comentarios) debe ser escrito obligatoriamente en **Español**.
+- **Control de Git:** Antes de cualquier commit/push, lee estas reglas y revisa `git status`/`git diff`. NUNCA incluir en commits ni subir al remoto archivos de `DOCS/`, `.cursor/`, `.cursorignore`, reglas locales, scripts auxiliares, videos, PDFs, colecciones Postman o artefactos de trabajo; solo commitear archivos estrictamente relacionados con el cambio funcional aprobado dentro de `l10n_pe_kantia_integration/`.
+
+## Arquitectura del Módulo (Contexto Obligatorio)
+
+El módulo sigue una **arquitectura en capas**:
+1. **Controlador HTTP** (`controllers/main.py`): Recibe payloads JSON, autentica por API Key + IP whitelist, valida campos obligatorios, delega al servicio.
+2. **Capa de Servicio** (`services/invoice_service.py`): Modelo transitorio `kantia.invoice.service` que contiene TODA la lógica de negocio: resolución de partners, creación de `account.move`, mapeo de impuestos SUNAT, sincronización EDI, generación de PDFs duales.
+3. **Modelos** (`models/`): Extensiones por herencia (`_inherit`) de `account.move`, `account.move.line`, `res.partner` y el modelo propio `kantia.api.log`.
+4. **Reportes QWeb** (`views/report_*.xml`): Representaciones impresas en moneda dual (PEN/USD).
+
+## Integraciones y APIs Externas (Kantia)
+
+- **Peticiones Entrantes:** Este módulo RECIBE peticiones de Kantia. NO hace peticiones salientes. El flujo es: Kantia envía JSON → Controlador HTTP de Odoo procesa.
+- **Trazabilidad:** Inyecta logs (`import logging; _logger = logging.getLogger(__name__)`) antes y después de cada operación crítica. Todo el tráfico se registra en el modelo `kantia.api.log`.
+- **Idempotencia:** La factura se identifica por `kantia_invoice_id` (unique constraint). Si Kantia reenvía el mismo payload, se retorna la factura existente sin duplicar.
+- **Seguridad API:** Autenticación por API Key (`ir.config_parameter: kantia.api_key`) + IP Whitelisting (`kantia.allowed_ips`). Tamaño máximo de payload: 2MB.
+
+## Estructura del Manifest (`__manifest__.py`)
+
+Mantén el orden lógico: `name`, `summary`, `description`, `author`, `website`, `category`, `version`, `license`, `depends`, `data` (security, views, reports), `demo`, `installable`, `application`, `auto_install`.
+
+Dependencias actuales: `base`, `account`, `l10n_pe`, `l10n_pe_edi`.

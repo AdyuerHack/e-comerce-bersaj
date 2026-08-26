@@ -1,0 +1,58 @@
+---
+description: Reglas estrictas para el desarrollo del backend en Python – módulo l10n_pe_kantia_integration (Odoo 18).
+globs: *.py
+---
+# Reglas Estrictas de Backend (Python Odoo 18 – Kantia)
+
+- **ORM Nativo:** Usa `self.env['model'].search()`, `mapped()`, y `filtered()`. Quedan **estrictamente prohibidas las consultas SQL directas** (`self.env.cr.execute`) a menos que sea estrictamente necesario para SAVEPOINTs transaccionales (patrón ya establecido en `invoice_service.py` con `SAVEPOINT kantia_invoice_sp`).
+- **Herencia Python:** Para modificar código existente, usa SIEMPRE `_inherit`. NUNCA modifiques el código core nativo, siempre extiéndelo. Los modelos extendidos en este módulo son: `account.move`, `account.move.line`, `res.partner`.
+- **Decoradores:** Si agregas un campo computado, define correctamente `@api.depends()`. TODAS las ramas lógicas (if/else) deben asignar un valor para evitar errores de asignación fallida (`Compute method failed to assign`). Referencia: Los campos `kantia_*` en `account_move.py`.
+- **Linter (Pylint):** Respeta las advertencias y asegura compatibilidad con `pylint-odoo`.
+
+## Arquitectura de Capas (OBLIGATORIO)
+
+- **Controlador (`controllers/main.py`):** Solo maneja HTTP (parseo JSON, autenticación, validación de campos, respuestas). NUNCA poner lógica de negocio aquí.
+- **Servicio (`services/invoice_service.py`):** TODA la lógica de negocio va aquí. Es un `models.AbstractModel` con `_name = 'kantia.invoice.service'`. Se instancia con `request.env['kantia.invoice.service'].sudo()`.
+- **Modelos (`models/`):** Solo definición de campos, constraints y métodos compute. NO poner lógica de creación de facturas aquí.
+
+## Patrones Específicos del Módulo
+
+### Manejo de Errores con SAVEPOINTs
+```python
+self.env.cr.execute('SAVEPOINT kantia_invoice_sp')
+try:
+    # ... lógica de negocio ...
+    self.env.cr.execute('RELEASE SAVEPOINT kantia_invoice_sp')
+except Exception as e:
+    self.env.cr.execute('ROLLBACK TO SAVEPOINT kantia_invoice_sp')
+    raise
+```
+
+### Resolución de Partner (RUC/DNI)
+Se busca primero por `vat` (documento_identidad). Si no existe, se crea automáticamente y se marca como `is_kantia_client = True`.
+
+### Mapeo de Impuestos SUNAT
+Usa el campo `l10n_pe_edi_affectation_reason` con los códigos:
+- `'10'` → IGV (Gravado)
+- `'20'` → Exonerado
+- `'30'` → Inafecto
+
+### Creación de account.move
+SIEMPRE usar `with_context(check_move_validity=False)` para evitar el bug de validación en cascada de Odoo 18:
+```python
+move = self.env['account.move'].with_context(check_move_validity=False).create(move_vals)
+```
+
+### Tipo de Cambio Manual
+Verificar existencia del campo antes de asignar (compatibilidad entre localizaciones):
+```python
+if 'l10n_pe_currency_rate' in self.env['account.move']._fields:
+    move_vals['l10n_pe_currency_rate'] = float(tipo_cambio)
+```
+
+## Pruebas (Testing Profesional Odoo)
+- **Base:** Heredar de `odoo.tests.common.TransactionCase` para backend.
+- **Setup:** Configurar los datos en `setUpClass(cls)` usando `cls.env['...'].create(...)`. Crear productos, partners, y journals de prueba. Instanciar el servicio: `cls.KantiaService = cls.env['kantia.invoice.service']`.
+- **Aserciones Críticas:** Validar no solo los cálculos felices, sino usar `self.assertRaises(UserError)` para comprobar que las validaciones estrictas salten correctamente.
+- **Resiliencia:** Los tests deben funcionar aunque la contabilidad peruana no esté completamente configurada (sin SUNAT/EDI). Usar `try/except` o `hasattr` para campos opcionales de localización.
+- Usar el decorador `@tagged('post_install', '-at_install')`.

@@ -1,0 +1,54 @@
+# Configuración pylint-odoo — estándar híbrido PROGSUM (Odoo 18)
+#
+# División de responsabilidades:
+#   Ruff  → formato, imports, estilo, complejidad básica (C/R/W)
+#   Pylint-odoo → reglas Odoo, seguridad (sql-injection) y checks E
+#
+# Aplica a módulos custom (arqueos_caja). En monorepo Odoo, el ignore
+# excluye core/enterprise/venv para no lintear código ajeno al módulo.
+
+[MASTER]
+load-plugins=pylint_odoo
+ignore=enterprise-addons,odoo,addons,.venv,venv,__pycache__
+
+[FORMAT]
+max-line-length=120
+
+[BASIC]
+good-names=setUpClass,setUp,tearDown,tearDownClass
+
+[MESSAGES CONTROL]
+# Estilo (C), refactor (R) y warnings (W) → Ruff en el pipeline PROGSUM
+disable=
+    C,
+    R,
+    W,
+    import-error,
+    no-member,
+    no-name-in-module,
+    relative-beyond-top-level,
+    unused-import,
+    unused-variable,
+    pointless-statement,
+    missing-docstring,
+    # Patrones idiomáticos Odoo (no son defectos)
+    too-few-public-methods,
+    too-many-locals,
+    too-many-branches,
+    too-many-statements,
+    protected-access,
+    prefer-env-translation,
+    broad-exception-caught,
+    no-wizard-in-models,
+    duplicate-code,
+    unused-argument,
+    # Checks OCA — módulo propietario PROGSUM (OPL-1)
+    manifest-required-author,
+    license-allowed,
+    missing-readme,
+
+enable=
+    sql-injection
+
+[REPORTS]
+output-format=colorized
