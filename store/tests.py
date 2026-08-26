@@ -43,7 +43,7 @@ class Capa1DominioTests(TestCase):
 
     def test_falla_sin_stock(self):
         with self.assertRaises(ConflictoInventarioError):
-            PedidoBuilder().set_cliente("Juan").set_direccion("Calle 123").add_item(self.producto_1, 10)
+            PedidoBuilder().set_cliente("Juan").set_direccion("Calle 123").add_item(self.producto_1, 10).build()
 
 
 class Capa2AplicacionTests(TestCase):
@@ -90,8 +90,17 @@ class VistaHTTPTests(TestCase):
             'direccion': 'Plaza Central',
             'items': [{'producto_id': self.producto.id, 'cantidad': 1}]
         }
-        response = self.client.post('/checkout/', data=json.dumps(payload), content_type='application/json')
+        response = self.client.post('/checkout/', data=payload, content_type='application/json')
         self.assertEqual(response.status_code, 201)
+
+    def test_endpoint_checkout_400(self):
+        payload = {
+            'cliente': 'Carlos',
+            'direccion': 'Plaza',
+            # Falta items, DRF debe rechazar
+        }
+        response = self.client.post('/checkout/', data=payload, content_type='application/json')
+        self.assertEqual(response.status_code, 400)
 
     def test_endpoint_checkout_404(self):
         payload = {
@@ -99,7 +108,7 @@ class VistaHTTPTests(TestCase):
             'direccion': 'Plaza',
             'items': [{'producto_id': 999, 'cantidad': 1}]
         }
-        response = self.client.post('/checkout/', data=json.dumps(payload), content_type='application/json')
+        response = self.client.post('/checkout/', data=payload, content_type='application/json')
         self.assertEqual(response.status_code, 404)
 
     def test_endpoint_checkout_409(self):
@@ -108,5 +117,5 @@ class VistaHTTPTests(TestCase):
             'direccion': 'Plaza',
             'items': [{'producto_id': self.producto.id, 'cantidad': 10}]
         }
-        response = self.client.post('/checkout/', data=json.dumps(payload), content_type='application/json')
+        response = self.client.post('/checkout/', data=payload, content_type='application/json')
         self.assertEqual(response.status_code, 409)
