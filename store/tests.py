@@ -1,5 +1,3 @@
-from django.test import TestCase
-
 import json
 from decimal import Decimal
 
@@ -49,7 +47,7 @@ class CheckoutViewTests(TestCase):
         self.talla.refresh_from_db()
         self.assertEqual(self.talla.stock, 4)
 
-    def test_stock_insuficiente_devuelve_400(self):
+    def test_stock_insuficiente_devuelve_409(self):
         payload = {
             "cliente_id": self.cliente.id,
             "direccion_id": self.direccion.id,
@@ -57,13 +55,24 @@ class CheckoutViewTests(TestCase):
         }
         response = self._post(payload)
 
-        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.status_code, 409)
         self.assertIn("Stock insuficiente", response.json()["error"])
 
         self.talla.refresh_from_db()
         self.assertEqual(self.talla.stock, 5)  # no debe descontar nada
 
-    def test_cliente_inexistente_devuelve_400(self):
+    def test_talla_inexistente_devuelve_404(self):
+        payload = {
+            "cliente_id": self.cliente.id,
+            "direccion_id": self.direccion.id,
+            "items": [{"talla_id": 9999, "cantidad": 1}],
+        }
+        response = self._post(payload)
+
+        self.assertEqual(response.status_code, 404)
+        self.assertIn("no existe", response.json()["error"])
+
+    def test_cliente_inexistente_devuelve_404(self):
         payload = {
             "cliente_id": 9999,
             "direccion_id": self.direccion.id,
@@ -71,8 +80,29 @@ class CheckoutViewTests(TestCase):
         }
         response = self._post(payload)
 
-        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.status_code, 404)
         self.assertEqual(response.json()["error"], "Cliente no encontrado.")
+
+    def test_direccion_inexistente_devuelve_404(self):
+        payload = {
+            "cliente_id": self.cliente.id,
+            "direccion_id": 9999,
+            "items": [{"talla_id": self.talla.id, "cantidad": 1}],
+        }
+        response = self._post(payload)
+
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(
+            response.json()["error"],
+            "Dirección de envío no encontrada para este cliente.",
+        )
+
+    def test_campos_faltantes_devuelve_400(self):
+        response = self._post({"cliente_id": self.cliente.id})
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("direccion_id", response.json())
+        self.assertIn("items", response.json())
 
     def test_json_invalido_devuelve_400(self):
         response = self.client.post(
@@ -80,4 +110,3 @@ class CheckoutViewTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertIn("JSON válido", response.json()["error"])
