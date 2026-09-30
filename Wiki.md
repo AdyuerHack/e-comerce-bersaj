@@ -69,3 +69,43 @@ El diseño actual del sistema prepara el terreno de manera natural para integrar
 1. **Agnosticismo HTTP en Servicios:** Los flujos de negocio en `services.py` no reciben un objeto `Request` ni retornan un `Response`. El servicio espera estructuras nativas de Python (strings, ints, listas). Si mañana el tráfico llega por gRPC, GraphQL o colas asíncronas desde el API Gateway, la lógica de negocio se reutiliza 100%.
 2. **Excepciones Traducibles:** Las excepciones de dominio (como `RecursoNoEncontradoError`) son independientes del framework. Permiten al API Gateway o microservicio de presentación centralizar el manejo de errores y traducirlos a los códigos estándar de forma uniforme.
 3. **Manejo Centralizado de Infraestructura:** Al abstraer dependencias mediante Factories, el sistema puede cambiar fácilmente implementaciones (ej. usar Kafka en producción y Mock en local) sin alterar el core del negocio, vital al escalar detrás de un Gateway.
+
+## 4. Migración a Microservicios (Strangler Pattern)
+
+### 4.1 Matriz de decisión y selección
+
+Para determinar qué funcionalidad del monolito Django será candidata a ser extraída como microservicio, se analizaron diferentes módulos del sistema considerando tres criterios: frecuencia de cambio, consumo de recursos y acoplamiento con el resto de la aplicación.
+
+| Módulo / Funcionalidad | Frecuencia de Cambio | Consumo de Recursos | Acoplamiento | Decisión |
+| --- | --- | --- | --- | --- |
+| Autenticación | Baja | Bajo | Alto | Mantener en Django |
+| Catálogo de productos | Baja | Bajo | Alto | Mantener en Django |
+| Checkout / Pedidos | Media | Medio/Alto | Medio | **Extraer a Flask** |
+
+**Módulo seleccionado: Checkout / Pedidos**
+
+Se seleccionó el módulo de **Checkout / Pedidos** como candidato para la extracción debido a que concentra una parte importante de la lógica de negocio del sistema. Este proceso involucra diferentes operaciones relacionadas con la gestión de pedidos y puede requerir varias operaciones sobre los datos.
+
+Su frecuencia de cambio es considerada **media**, debido a que las reglas relacionadas con el proceso de compra pueden evolucionar. El consumo de recursos se considera **medio/alto**, debido a que el proceso puede involucrar múltiples validaciones y operaciones relacionadas con el pedido.
+
+Finalmente, presenta un **acoplamiento medio**, lo que permite aislar progresivamente esta funcionalidad del monolito Django.
+
+Por estas razones, se propone extraer el módulo de **Checkout / Pedidos** a un microservicio independiente desarrollado en **Flask**, manteniendo el resto de las funcionalidades en Django. Esta separación permitirá aplicar el **Strangler Pattern**, donde las funcionalidades existentes continúan siendo atendidas por el monolito mientras la funcionalidad seleccionada es migrada progresivamente al nuevo microservicio.
+
+**Solución Arquitectónica (Snippet Nginx):**
+```nginx
+# nginx.conf
+server {
+    listen 80;
+
+    # Monolito Legacy
+    location / {
+        proxy_pass http://django_web:8000;
+    }
+
+    # Microservicio Nuevo
+    location /checkout/ {
+        proxy_pass http://flask_checkout_service:5000;
+    }
+}
+```
