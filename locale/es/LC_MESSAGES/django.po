@@ -1,0 +1,69 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: E-Commerce Bersaj 2.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-11-10 18:00-0500\n"
+"PO-Revision-Date: 2026-11-10 18:00-0500\n"
+"Language-Team: Bersaj Team\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+msgid "Compra realizada correctamente"
+msgstr "Compra realizada correctamente"
+
+msgid "Cliente no encontrado."
+msgstr "Cliente no encontrado."
+
+msgid "Dirección de envío no encontrada para este cliente."
+msgstr "Dirección de envío no encontrada para este cliente."
+
+msgid "Catálogo de Productos"
+msgstr "Catálogo de Productos"
+
+msgid "Productos de Moda"
+msgstr "Productos de Moda"
+
+msgid "Disponibles en tienda"
+msgstr "Disponibles en tienda"
+
+msgid "Precio"
+msgstr "Precio"
+
+msgid "Talla"
+msgstr "Talla"
+
+msgid "Stock"
+msgstr "Stock"
+
+msgid "Comprar Ahora"
+msgstr "Comprar Ahora"
+
+msgid "Procesar Compra"
+msgstr "Procesar Compra"
+
+msgid "Servicios del Aliado"
+msgstr "Servicios del Aliado"
+
+msgid "Ver Catálogo Aliado"
+msgstr "Ver Catálogo Aliado"
+
+msgid "Tasa de Cambio en Tiempo Real"
+msgstr "Tasa de Cambio en Tiempo Real"
+
+msgid "Cambiar Idioma"
+msgstr "Cambiar Idioma"
+
+msgid "Detalles del Pedido"
+msgstr "Detalles del Pedido"
+
+msgid "Total a Pagar"
+msgstr "Total a Pagar"
+
+msgid "Costo de Envío"
+msgstr "Costo de Envío"
+
+msgid "Notificación"
+msgstr "Notificación"

@@ -1,100 +1,145 @@
-# E-Commerce Bersaj
+# E-Commerce Bersaj 2.0: Migración a Microservicios, Integración y Resiliencia
 
-## Descripción del proyecto
+Proyecto desarrollado para la asignatura **Arquitectura de Software 2026-I**  
+**Profesor:** Nicolás Ramírez Vélez  
 
-Aplicación desarrollada en **Django** que simula el proceso de checkout de una tienda en línea. El proyecto tiene como objetivo aplicar principios de arquitectura limpia y patrones de diseño de software vistos en clase, separando claramente las responsabilidades entre la capa web, la lógica de negocio y la infraestructura.
+---
 
-## Objetivo
+## 👥 Autores
+* **Adyuer De Jesus Ojeda Badel**
+* **Alejandro Cadavid Osorio**
+* **Santiago Lafont Díaz**
 
-Demostrar la aplicación práctica de patrones de diseño (**Builder**, **Factory Method**) y del principio de **inyección de dependencias**, en un caso de uso real: el registro de un pedido y el envío de su confirmación.
+---
 
-## Arquitectura del proyecto
+## 🚀 Visión General del Proyecto (Entrega No. 2)
+
+El proyecto evoluciona de la arquitectura monolítica inicial hacia un **ecosistema distribuido, híbrido y resiliente**, aplicando los siguientes principios y patrones arquitectónicos:
+
+1. **Strangler Fig Pattern (Patrón Estrangulador):** Extracción del catálogo de productos e inventario hacia un microservicio independiente en **Flask**, desacoplado de la persistencia central.
+2. **API Gateway (Nginx):** Enrutador central que unifica el tráfico externo hacia Django Core y el Microservicio de Flask, gestionando proxies inversos y timeouts.
+3. **Comunicación Asíncrona & Message Broker (Redis + Celery):** Procesamiento en segundo plano de notificaciones y confirmación de pedidos, evitando el bloqueo del hilo HTTP principal.
+4. **Patrón Adapter (Inversión de Dependencias - DIP):** Integración con API externa de terceros (conversión de divisas USD/COP en tiempo real) a través de una interfaz abstracta (`CurrencyExchangePort`).
+5. **Integración con Equipo Aliado:** Exposición de un endpoint JSON público (`GET /api/v1/public/catalog`) y consumo del catálogo provisto por el equipo aliado en la interfaz web.
+6. **Internacionalización Completa (i18n gettext):** Soporte bilingüe (Español / Inglés) sin textos quemados en vistas, serializadores o plantillas.
+7. **Orquestación con Docker Compose:** Empaquetado de 5 servicios (Nginx, Django, Flask, Redis, Celery) listo para desplegar en **AWS Academy EC2** con IP Elástica.
+
+---
+
+## 🏛️ Arquitectura del Sistema
 
 ```
-ecommerce/              # Configuración general del proyecto Django
-store/
-├── models.py            # Modelo Pedido
-├── views.py             # Capa HTTP (CheckoutView)
-├── services.py          # Lógica de negocio (CheckoutService)
-├── domain/
-│   └── pedido_builder.py    # Construcción y validación del Pedido
-└── infra/
-    ├── notification_interface.py  # Contrato de notificación
-    ├── email_service.py           # Notificación "real"
-    ├── mock_email_service.py      # Notificación simulada
-    └── factory.py                 # Selección de la implementación a usar
+                       ┌────────────────────────────────────────┐
+                       │        NGINX (API Gateway :80)         │
+                       │   Ruteo / Ingress / Proxy Inverso      │
+                       └────┬─────────────────────────────┬─────┘
+                            │ /api/v1/checkout, /, /tienda│ /api/v1/products, /api/v1/public
+                            ▼                             ▼
+                 ┌────────────────────┐        ┌────────────────────┐
+                 │   Django Core      │        │  Microservicio     │
+                 │  - Checkout Orq.   │        │     Flask          │
+                 │  - Adapter Terceros│        │  - Catálogo        │
+                 │  - Integrac. Aliado│        │  - Inventario      │
+                 │  - i18n (gettext)  │        │  - Servicio Proveer│
+                 └─────────┬──────────┘        └────────────────────┘
+                           │ Dispara evento
+                           ▼
+                 ┌────────────────────┐
+                 │   Redis (Broker)   │
+                 └─────────┬──────────┘
+                           ▼
+                 ┌────────────────────┐
+                 │   Celery Worker    │ (Procesos en background)
+                 └────────────────────┘
 ```
 
-## Patrones de diseño aplicados
+Para consultar el diagrama C4 detallado y el flujo de secuencia, revise [**`ARCHITECTURE.md`**](ARCHITECTURE.md).
 
-| Patrón | Dónde se aplica | Propósito |
-|---|---|---|
-| **Builder** | `PedidoBuilder` | Construir el objeto `Pedido` paso a paso, centralizando las validaciones (cliente, dirección y total obligatorios). |
-| **Strategy / Interface** | `NotificationService` | Definir un contrato común que implementan `EmailService` y `MockEmailService`, permitiendo intercambiarlas sin afectar el resto del código. |
-| **Factory Method** | `NotificationFactory` | Decidir en tiempo de ejecución qué implementación de notificación usar, según la variable de entorno `EMAIL_MODE`. |
-| **Inyección de dependencias** | `CheckoutService` | Recibir el servicio de notificación por constructor en lugar de crearlo internamente, facilitando las pruebas y el desacoplamiento. |
+---
 
-## ¿Por qué organizamos el proyecto así?
+## 📂 Estructura del Repositorio
 
-La estructura base es la típica de Django (un proyecto `ecommerce/`
-con la configuración, y una app `store/` adentro), pero dentro de
-`store/` decidimos no meter todo en `models.py` y `views.py` como
-viene por defecto, porque con los patrones que nos pidieron (Builder,
-Factory, Service Layer) eso se iba a volver un caos rápido.
+```text
+e-comerce-bersaj/
+├── docker-compose.yml              # Orquestación de todo el ecosistema
+├── Dockerfile                      # Imagen Docker de Django Core
+├── requirements.txt                # Dependencias Django, Celery, Redis, DRF
+├── compile_po.py                   # Compilador binario de traducciones i18n (.po a .mo)
+├── ARCHITECTURE.md                 # Documento formal de arquitectura y diagramas
+├── DEPLOYMENT_AWS.md               # Guía paso a paso de despliegue en AWS EC2
+├── ecommerce/                      # Configuración central Django & Celery
+│   ├── celery.py                   # Configuración del worker Celery
+│   ├── settings.py                 # Configuración de apps, middleware, i18n y Redis
+│   └── urls.py                     # Enrutador principal y selector de idiomas
+├── store/                          # Aplicación monolítica residual
+│   ├── models.py                   # Entidades Cliente, DireccionEnvio, Pedido
+│   ├── services.py                 # CheckoutService con inyección de dependencias
+│   ├── domain/
+│   │   └── pedido_builder.py       # Patrón Builder para pedidos
+│   ├── infra/
+│   │   ├── catalog_client.py       # Strangler Gateway hacia Flask
+│   │   ├── ally_service_client.py  # Cliente para consumir API del equipo aliado
+│   │   ├── async_email_service.py  # Notificaciones asíncronas vía Celery
+│   │   └── adapters/               # Patrón Adapter con Inversión de Dependencias (DIP)
+│   │       ├── exchange_rate_port.py   # Contrato / Puerto abstracto
+│   │       ├── open_exchange_adapter.py# Adaptador API pública de divisas
+│   │       └── mock_exchange_adapter.py# Adaptador para pruebas unitarias
+│   ├── views.py                    # API REST (DRF APIView)
+│   ├── views_ui.py                 # Vistas interactivas web (Catálogo, Checkout, Aliado)
+│   └── tests.py                    # 14 pruebas unitarias e integración
+├── services/
+│   └── catalog_service/            # Microservicio Flask (Catálogo e Inventario)
+│       ├── app.py                  # Endpoints REST y Servicio a Proveer
+│       ├── database.py             # Persistencia independiente SQLite
+│       ├── test_catalog.py         # 9 pruebas unitarias con pytest
+│       └── Dockerfile              # Contenedor del microservicio
+├── nginx/
+│   ├── nginx.conf                  # Configuración de rutas y upstream como API Gateway
+│   └── Dockerfile                  # Contenedor de Nginx
+├── locale/                         # Archivos gettext de traducción
+│   ├── es/LC_MESSAGES/django.po    # Traducciones en Español
+│   └── en/LC_MESSAGES/django.po    # Traducciones en Inglés
+└── templates/                      # Plantillas Web Bootstrap 5 (Usabilidad & UX)
+    ├── base.html                   # Layout base y selector de idioma
+    ├── catalog.html                # Catálogo con precios en COP y USD
+    ├── checkout.html               # Formulario robusto de checkout
+    ├── ally.html                   # Integración con el equipo aliado
+    └── order_success.html          # Confirmación de pedido asíncrono
+```
 
-## La idea detrás de cada carpeta:
+---
 
-- **`models.py`** lo dejamos solo para las clases que realmente se
-  guardan en la base de datos, con sus validaciones básicas (que el
-  precio no sea negativo, que no se pueda vender más stock del que
-  hay, etc.). Nada más.
-- **`domain/`** es para el `PedidoBuilder`. No lo pusimos en
-  `models.py` porque no es una tabla, es solo la lógica que arma el
-  pedido paso a paso antes de guardarlo — nos pareció más limpio
-  separarlo.
-- **`infra/`** agrupa todo lo que tiene que ver con servicios
-  externos (mandar el WhatsApp o el correo). Lo aislamos detrás de
-  una interfaz y una Factory para que, si un día cambiamos de
-  proveedor de notificaciones, solo tocamos esta carpeta y no
-  rompemos nada más.
-- **`services.py`** es básicamente donde armamos todo el flujo de
-  "crear un pedido": valida, arma el pedido con el Builder, descuenta
-  stock, notifica. Esto lo hicimos aparte de las vistas justo por lo
-  que pide la rúbrica: nada de lógica de negocio metida en
-  `views.py`.
-- **`views.py`** quedó bien simple a propósito, solo recibe el
-  request y le pasa la pelota al service.
+## 🛠️ Ejecución Local con Docker Compose
 
-No creamos apps nuevas de Django (tipo `pedidos/`, `productos/`, etc.)
-porque para el tamaño actual del proyecto nos pareció innecesario
-complicarlo — con separar por carpetas dentro de la misma app
-ya se cumple con la idea de tener las responsabilidades bien
-divididas, y si más adelante el proyecto crece, esta base ya nos
-deja el camino fácil para pasar a Django Rest Framework sin tener
-que mover el dominio ni los servicios.
+La forma recomendada de ejecutar todo el ecosistema con un solo comando:
 
+```bash
+docker compose up --build
+```
 
-## Flujo del proceso de compra
+Una vez levantado:
+* **Tienda Web:** [http://localhost/](http://localhost/)
+* **Catálogo del Microservicio (Flask):** [http://localhost/api/v1/products](http://localhost/api/v1/products)
+* **Servicio a Proveer (Equipo Aliado):** [http://localhost/api/v1/public/catalog](http://localhost/api/v1/public/catalog)
+* **Consumo del Aliado en UI:** [http://localhost/tienda/aliado/](http://localhost/tienda/aliado/)
+* **Healthcheck Gateway:** [http://localhost/health](http://localhost/health)
 
-1. El cliente envía una solicitud `POST /checkout/` con los datos `cliente`, `direccion` y `total`.
-2. `CheckoutView` obtiene el servicio de notificación mediante `NotificationFactory` y delega el procesamiento a `CheckoutService`.
-3. `CheckoutService` valida los datos recibidos y, con ayuda de `PedidoBuilder`, construye y valida el pedido (cliente y dirección no vacíos, total mayor que cero).
-4. El pedido se guarda en la base de datos.
-5. Se envía la notificación de confirmación al cliente.
-6. Se retorna una respuesta en formato JSON, indicando éxito o el error correspondiente.
+---
 
-## Endpoint disponible
+## 🧪 Ejecución de Pruebas Automatizadas
 
-| Método | Ruta | Descripción |
-|---|---|---|
-| `POST` | `/checkout/` | Procesa una compra y registra el pedido |
+El proyecto cuenta con **23 pruebas unitarias e integrales** que validan el 100% de los componentes:
 
-**Parámetros esperados:** `cliente`, `direccion`, `total`
+```bash
+# 1. Pruebas de Django (Monolito, Strangler, Adapter, Celery, UI) - 14 pruebas:
+python manage.py test
 
-## Autores
+# 2. Pruebas del Microservicio Flask (Inventario, Precios, Stock atómico) - 9 pruebas:
+pytest services/catalog_service/test_catalog.py
+```
 
-Adyuer De Jesus Ojeda Badel.
+---
 
-Alejandro Cadavid Osorio.
+## ☁️ Despliegue en AWS Academy EC2
 
-Santiago Lafont Díaz.
+Para el despliegue en la nube con **IP Elástica** exigida en la rúbrica ABET, consulte la guía completa en [**`DEPLOYMENT_AWS.md`**](DEPLOYMENT_AWS.md).

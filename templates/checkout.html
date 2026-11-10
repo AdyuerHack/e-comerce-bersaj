@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "Procesar Compra" %} | Bersaj{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card border-0 shadow-sm rounded-3">
+            <div class="card-header bg-dark text-white py-3">
+                <h4 class="mb-0 fw-bold"><i class="bi bi-credit-card-2-front me-2 text-primary"></i>{% trans "Procesar Compra" %}</h4>
+            </div>
+            <div class="card-body p-4">
+                <form method="post" action="{% url 'tienda_checkout' %}">
+                    {% csrf_token %}
+
+                    <h5 class="fw-bold mb-3 text-secondary"><i class="bi bi-person-fill me-1"></i>1. Datos del Cliente</h5>
+                    <div class="mb-3">
+                        <label for="cliente_id" class="form-label fw-semibold">Seleccione Cliente:</label>
+                        <select name="cliente_id" id="cliente_id" class="form-select" required>
+                            <option value="">-- Seleccione un cliente registrado --</option>
+                            {% for c in clientes %}
+                                <option value="{{ c.id }}">{{ c.nombre }} ({{ c.email }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <h5 class="fw-bold mb-3 mt-4 text-secondary"><i class="bi bi-geo-alt-fill me-1"></i>2. Dirección de Envío</h5>
+                    <div class="mb-3">
+                        <label for="direccion_id" class="form-label fw-semibold">Seleccione Dirección:</label>
+                        <select name="direccion_id" id="direccion_id" class="form-select" required>
+                            <option value="">-- Seleccione dirección registrada --</option>
+                            {% for d in direcciones %}
+                                <option value="{{ d.id }}">{{ d.cliente.nombre }} - {{ d.calle }}, {{ d.ciudad }}</option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text">El costo base de envío estándar es de $8.000 COP.</div>
+                    </div>
+
+                    <h5 class="fw-bold mb-3 mt-4 text-secondary"><i class="bi bi-bag-fill me-1"></i>3. Selección de Prenda</h5>
+                    <div class="row g-3">
+                        <div class="col-md-8">
+                            <label for="talla_id" class="form-label fw-semibold">Prenda y Talla:</label>
+                            <select name="talla_id" id="talla_id" class="form-select" required>
+                                <option value="">-- Seleccione prenda y talla --</option>
+                                {% for t in tallas %}
+                                    <option value="{{ t.id }}" data-precio="{{ t.precio }}">
+                                        {{ t.producto_nombre }} - Talla {{ t.talla }} (${{ t.precio }} COP | Stock: {{ t.stock }})
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="cantidad" class="form-label fw-semibold">Cantidad:</label>
+                            <input type="number" name="cantidad" id="cantidad" class="form-control" value="1" min="1" max="50" required>
+                        </div>
+                    </div>
+
+                    <div class="alert alert-info mt-4 d-flex align-items-center" role="alert">
+                        <i class="bi bi-lightning-charge-fill fs-4 me-3 text-warning"></i>
+                        <div>
+                            <strong>Resiliencia Asíncrona:</strong> La confirmación del pedido y generación del recibo se procesará en segundo plano mediante <strong>Redis y Celery Worker</strong> sin bloquear la experiencia de compra.
+                        </div>
+                    </div>
+
+                    <hr class="my-4">
+
+                    <button type="submit" class="btn btn-primary btn-lg w-100 py-3 fw-bold">
+                        <i class="bi bi-check-circle-fill me-2"></i>{% trans "Comprar Ahora" %}
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

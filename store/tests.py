@@ -110,3 +110,112 @@ class CheckoutViewTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 400)
+
+    def test_strangler_pattern_con_microservicio_exitoso(self):
+        from unittest.mock import patch, MagicMock
+        from .infra.catalog_client import HttpCatalogMicroserviceAdapter
+        from .services import CheckoutService
+        from .infra.mock_email_service import MockEmailService
+
+        adapter = HttpCatalogMicroserviceAdapter(base_url="http://fake-catalog")
+
+        with patch("requests.get") as mock_get, patch("requests.post") as mock_post:
+            mock_get.return_value = MagicMock(
+                status_code=200,
+                json=lambda: {
+                    "id": self.talla.id,
+                    "talla": "M",
+                    "stock": 10,
+                    "producto_id": self.producto.id,
+                    "producto_nombre": "Camiseta Mock",
+                    "precio": 45000.00,
+                },
+            )
+            mock_post.return_value = MagicMock(
+                status_code=200,
+                json=lambda: {"success": True, "message": "Stock descontado"},
+            )
+
+            service = CheckoutService(
+                notification_service=MockEmailService(),
+                catalog_gateway=adapter,
+            )
+
+            payload = {
+                "cliente_id": self.cliente.id,
+                "direccion_id": self.direccion.id,
+                "items": [{"talla_id": self.talla.id, "cantidad": 2}],
+            }
+
+            resultado = service.procesar_compra(payload)
+            self.assertEqual(resultado["mensaje"], "Compra realizada correctamente")
+            self.assertEqual(resultado["total"], "98000.00")  # (45000*2) + 8000
+            self.assertTrue(mock_get.called)
+            self.assertTrue(mock_post.called)
+
+
+class AdapterPatternTests(TestCase):
+    """Pruebas del Patrón Adapter (Inversión de Dependencias - DIP) para API de Terceros."""
+
+    def test_mock_exchange_rate_adapter(self):
+        from .infra.adapters.mock_exchange_adapter import MockExchangeRateAdapter
+        adapter = MockExchangeRateAdapter(fixed_rate=Decimal("4000.00"))
+        
+        tasa = adapter.obtener_tasa_usd_a_cop()
+        self.assertEqual(tasa, Decimal("4000.00"))
+
+        monto_cop = Decimal("40000.00")
+        monto_usd = adapter.convertir_cop_a_usd(monto_cop)
+        self.assertEqual(monto_usd, Decimal("10.00"))
+
+    def test_open_exchange_adapter_con_fallback(self):
+        from unittest.mock import patch
+        from .infra.adapters.open_exchange_adapter import OpenExchangeRateAdapter
+        import requests
+
+        adapter = OpenExchangeRateAdapter()
+        with patch("requests.get", side_effect=requests.RequestException("Network down")):
+            tasa = adapter.obtener_tasa_usd_a_cop()
+            self.assertEqual(tasa, Decimal("4200.00"))  # Fallback resiliente
+
+
+class AllyServiceClientTests(TestCase):
+    """Pruebas para el consumo del servicio provisto por el equipo aliado."""
+
+    def test_ally_service_fallback(self):
+        from .infra.ally_service_client import AllyServiceClient
+        client = AllyServiceClient(base_url="")
+        res = client.obtener_catalogo_aliado()
+        self.assertFalse(res["conectado"])
+        self.assertIn("productos", res["datos"])
+
+
+class CeleryAsynchronousTaskTests(TestCase):
+    """Pruebas de tareas en segundo plano (Celery & Redis)."""
+
+    def test_tarea_confirmacion_asincrona(self):
+        from .tasks import enviar_confirmacion_asincrona
+        resultado = enviar_confirmacion_asincrona("Juan Perez", pedido_id=42, total="50000.00")
+        self.assertEqual(resultado["status"], "ENVIADO")
+        self.assertEqual(resultado["pedido_id"], 42)
+
+
+class UIViewIntegrationTests(TestCase):
+    """Pruebas de navegación UI, usabilidad y renderizado."""
+
+    def setUp(self):
+        self.client = Client()
+        self.cliente = Cliente.objects.create(nombre="Carlos Gomez", email="carlos@example.com")
+        self.producto = Producto.objects.create(nombre="Jean Bersaj", precio=Decimal("80000.00"))
+        self.talla = Talla.objects.create(producto=self.producto, talla="32", stock=10)
+
+    def test_catalogo_view_status_200(self):
+        response = self.client.get("/")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Jean Bersaj")
+
+    def test_aliado_view_status_200(self):
+        response = self.client.get("/tienda/aliado/")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Servicios del Aliado")
+
