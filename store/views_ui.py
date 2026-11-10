@@ -20,21 +20,21 @@ class CatalogoView(View):
         adapter = CurrencyAdapterFactory.get_adapter()
         tasa_usd = adapter.obtener_tasa_usd_a_cop()
 
-        # Obtener productos (vía local o microservicio)
-        productos_db = Producto.objects.filter(activo=True).prefetch_related("tallas")
+        gateway = CatalogGatewayFactory.get_gateway()
+        productos_raw = gateway.listar_productos()
         productos = []
 
-        for p in productos_db:
-            precio_usd = adapter.convertir_cop_a_usd(p.precio)
-            tallas = [{"id": t.id, "talla": t.talla, "stock": t.stock} for t in p.tallas.all()]
+        for p in productos_raw:
+            precio = Decimal(str(p["precio"]))
+            precio_usd = adapter.convertir_cop_a_usd(precio)
             productos.append({
-                "id": p.id,
-                "nombre": p.nombre,
-                "descripcion": p.descripcion,
-                "precio": p.precio,
+                "id": p["id"],
+                "nombre": p["nombre"],
+                "descripcion": p.get("descripcion", ""),
+                "precio": precio,
                 "precio_usd": str(precio_usd),
-                "categoria": "Moda Bersaj",
-                "tallas": tallas,
+                "categoria": p.get("categoria", "Moda Bersaj"),
+                "tallas": p.get("tallas", []),
             })
 
         context = {
@@ -50,18 +50,9 @@ class CheckoutUIView(View):
     def get(self, request):
         clientes = Cliente.objects.all()
         direcciones = DireccionEnvio.objects.select_related("cliente").all()
-        tallas_db = Talla.objects.select_related("producto").filter(stock__gt=0)
         
-        tallas = [
-            {
-                "id": t.id,
-                "talla": t.talla,
-                "stock": t.stock,
-                "producto_nombre": t.producto.nombre,
-                "precio": t.producto.precio,
-            }
-            for t in tallas_db
-        ]
+        gateway = CatalogGatewayFactory.get_gateway()
+        tallas = gateway.listar_tallas_disponibles()
 
         adapter = CurrencyAdapterFactory.get_adapter()
         tasa_usd = adapter.obtener_tasa_usd_a_cop()
@@ -95,13 +86,12 @@ class CheckoutUIView(View):
 
         try:
             resultado = service.procesar_compra(payload)
-            if "error" in resultado:
-                messages.error(request, _(resultado["error"]))
-                return redirect("tienda_checkout")
-
             return render(request, "order_success.html", {"resultado": resultado})
 
         except (RecursoNoEncontradoError, ConflictoInventarioError) as e:
+            messages.error(request, _(str(e)))
+            return redirect("tienda_checkout")
+        except ValueError as e:
             messages.error(request, _(str(e)))
             return redirect("tienda_checkout")
         except Exception as e:

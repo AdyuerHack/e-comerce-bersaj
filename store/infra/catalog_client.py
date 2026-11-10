@@ -21,6 +21,16 @@ class CatalogGateway(ABC):
     def descontar_stock(self, items):
         pass
 
+    @abstractmethod
+    def listar_productos(self):
+        """Retorna la lista de productos activos con sus tallas y stock."""
+        pass
+
+    @abstractmethod
+    def listar_tallas_disponibles(self):
+        """Retorna la lista de tallas con stock > 0 para el formulario de compra."""
+        pass
+
 
 class LocalCatalogAdapter(CatalogGateway):
     """Implementación de respaldo que consulta los modelos locales de Django."""
@@ -51,6 +61,36 @@ class LocalCatalogAdapter(CatalogGateway):
                 )
             talla.stock -= cantidad
             talla.save()
+
+    def listar_productos(self):
+        from store.models import Producto
+        productos_db = Producto.objects.filter(activo=True).prefetch_related("tallas")
+        res = []
+        for p in productos_db:
+            tallas = [{"id": t.id, "talla": t.talla, "stock": t.stock} for t in p.tallas.all()]
+            res.append({
+                "id": p.id,
+                "nombre": p.nombre,
+                "descripcion": p.descripcion,
+                "precio": p.precio,
+                "categoria": "Moda Bersaj",
+                "tallas": tallas,
+            })
+        return res
+
+    def listar_tallas_disponibles(self):
+        from store.models import Talla
+        tallas_db = Talla.objects.select_related("producto").filter(stock__gt=0)
+        return [
+            {
+                "id": t.id,
+                "talla": t.talla,
+                "stock": t.stock,
+                "producto_nombre": t.producto.nombre,
+                "precio": t.producto.precio,
+            }
+            for t in tallas_db
+        ]
 
 
 class HttpCatalogMicroserviceAdapter(CatalogGateway):
@@ -86,6 +126,16 @@ class HttpCatalogMicroserviceAdapter(CatalogGateway):
             if resp.status_code == 409:
                 raise ConflictoInventarioError(resp.json().get("error", "Stock insuficiente"))
             resp.raise_for_status()
+
+            # Sincronización local defensiva durante el periodo de migración (Strangler Fig)
+            try:
+                from django.db import models as dj_models
+                from store.models import Talla
+                for tid, qty in items:
+                    Talla.objects.filter(pk=tid).update(stock=dj_models.F("stock") - qty)
+            except Exception:
+                pass
+
             return resp.json()
         except requests.RequestException as e:
             if hasattr(e, "response") and e.response is not None:
@@ -94,6 +144,42 @@ class HttpCatalogMicroserviceAdapter(CatalogGateway):
                 if e.response.status_code == 404:
                     raise RecursoNoEncontradoError(e.response.json().get("error", "Recurso no encontrado"))
             raise RuntimeError(f"Falla de comunicación con microservicio de inventario: {str(e)}")
+
+    def listar_productos(self):
+        url = f"{self.base_url}/api/v1/products"
+        try:
+            resp = requests.get(url, timeout=3)
+            if resp.status_code == 200:
+                productos = resp.json()
+                for p in productos:
+                    p["precio"] = Decimal(str(p["precio"]))
+                return productos
+        except requests.RequestException:
+            pass
+        return LocalCatalogAdapter().listar_productos()
+
+    def listar_tallas_disponibles(self):
+        url = f"{self.base_url}/api/v1/products"
+        try:
+            resp = requests.get(url, timeout=3)
+            if resp.status_code == 200:
+                productos = resp.json()
+                tallas = []
+                for p in productos:
+                    for t in p.get("tallas", []):
+                        if t.get("stock", 0) > 0:
+                            tallas.append({
+                                "id": t["id"],
+                                "talla": t["talla"],
+                                "stock": t["stock"],
+                                "producto_nombre": p["nombre"],
+                                "precio": Decimal(str(p["precio"])),
+                            })
+                return tallas
+        except requests.RequestException:
+            pass
+        return LocalCatalogAdapter().listar_tallas_disponibles()
+
 
 
 class CatalogGatewayFactory:

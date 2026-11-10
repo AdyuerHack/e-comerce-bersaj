@@ -219,3 +219,48 @@ class UIViewIntegrationTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Servicios del Aliado")
 
+    def test_catalog_gateway_listar_productos_y_tallas(self):
+        from .infra.catalog_client import LocalCatalogAdapter
+        adapter = LocalCatalogAdapter()
+        productos = adapter.listar_productos()
+        self.assertGreaterEqual(len(productos), 1)
+        self.assertEqual(productos[0]["nombre"], "Jean Bersaj")
+
+        tallas = adapter.listar_tallas_disponibles()
+        self.assertGreaterEqual(len(tallas), 1)
+        self.assertEqual(tallas[0]["stock"], 10)
+
+    def test_compra_con_excepcion_rollback_atomico(self):
+        from unittest.mock import MagicMock
+        from .services import CheckoutService
+        from .exceptions import ConflictoInventarioError
+        from .models import Pedido
+
+        mock_gateway = MagicMock()
+        mock_gateway.obtener_talla_info.return_value = {
+            "talla_id": self.talla.id,
+            "talla": "32",
+            "stock": 10,
+            "producto_id": self.producto.id,
+            "producto_nombre": "Jean Bersaj",
+            "precio": Decimal("80000.00"),
+        }
+        mock_gateway.descontar_stock.side_effect = ConflictoInventarioError("Fallo simulado en microservicio")
+
+        mock_notification = MagicMock()
+        service = CheckoutService(notification_service=mock_notification, catalog_gateway=mock_gateway)
+
+        payload = {
+            "cliente_id": self.cliente.id,
+            "direccion_id": DireccionEnvio.objects.create(cliente=self.cliente, calle="Cll 10", ciudad="Medellin", codigo_postal="05001").id,
+            "items": [{"talla_id": self.talla.id, "cantidad": 1}],
+        }
+
+        pedidos_antes = Pedido.objects.count()
+        with self.assertRaises(ConflictoInventarioError):
+            service.procesar_compra(payload)
+
+        # Debe haberse hecho rollback completo de la transacción
+        self.assertEqual(Pedido.objects.count(), pedidos_antes)
+
+

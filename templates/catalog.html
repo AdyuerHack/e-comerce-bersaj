@@ -56,7 +56,7 @@
                                 <strong>{{ t.talla }}</strong>: {{ t.stock }} und.
                             </span>
                         {% empty %}
-                            <span class="badge bg-secondary">Sin tallas registradas</span>
+                            <span class="badge bg-secondary">{% trans "Sin tallas registradas" %}</span>
                         {% endfor %}
                     </div>
                 </div>
@@ -69,7 +69,7 @@
     </div>
     {% empty %}
     <div class="col-12 text-center py-5">
-        <p class="text-muted fs-5">No hay productos disponibles actualmente.</p>
+        <p class="text-muted fs-5">{% trans "No hay productos disponibles actualmente." %}</p>
     </div>
     {% endfor %}
 </div>

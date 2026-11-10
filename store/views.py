@@ -45,23 +45,9 @@ class CheckoutView(APIView):
                 status=status.HTTP_409_CONFLICT
             )
 
-        if "error" in resultado:
-            error = resultado["error"]
-
-            if error == "Cliente no encontrado.":
-                return Response(
-                    resultado,
-                    status=status.HTTP_404_NOT_FOUND
-                )
-
-            if error == "Dirección de envío no encontrada para este cliente.":
-                return Response(
-                    resultado,
-                    status=status.HTTP_404_NOT_FOUND
-                )
-
+        except ValueError as e:
             return Response(
-                resultado,
+                {"error": str(e)},
                 status=status.HTTP_400_BAD_REQUEST
             )
 

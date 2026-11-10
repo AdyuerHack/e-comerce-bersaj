@@ -67,3 +67,22 @@ msgstr "Shipping Cost"
 
 msgid "Notificación"
 msgstr "Notification"
+
+msgid "Sin tallas registradas"
+msgstr "No sizes registered"
+
+msgid "No hay productos disponibles actualmente."
+msgstr "No products currently available."
+
+msgid "Tu pedido ha sido registrado en el sistema."
+msgstr "Your order has been registered in the system."
+
+msgid "Número de Pedido"
+msgstr "Order Number"
+
+msgid "Encolado en Celery (Segundo plano)"
+msgstr "Queued in Celery (Background)"
+
+msgid "Volver al Catálogo"
+msgstr "Back to Catalog"
+

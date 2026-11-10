@@ -67,3 +67,22 @@ msgstr "Costo de Envío"
 
 msgid "Notificación"
 msgstr "Notificación"
+
+msgid "Sin tallas registradas"
+msgstr "Sin tallas registradas"
+
+msgid "No hay productos disponibles actualmente."
+msgstr "No hay productos disponibles actualmente."
+
+msgid "Tu pedido ha sido registrado en el sistema."
+msgstr "Tu pedido ha sido registrado en el sistema."
+
+msgid "Número de Pedido"
+msgstr "Número de Pedido"
+
+msgid "Encolado en Celery (Segundo plano)"
+msgstr "Encolado en Celery (Segundo plano)"
+
+msgid "Volver al Catálogo"
+msgstr "Volver al Catálogo"
+
