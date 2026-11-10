@@ -1,0 +1,93 @@
+services:
+  # =====================================================================
+  # 1. API GATEWAY (Nginx) - Ruteo profesional de tráfico
+  # =====================================================================
+  nginx:
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+    container_name: bersaj_api_gateway
+    ports:
+      - "80:80"
+    depends_on:
+      - django_web
+      - flask_catalog
+    restart: unless-stopped
+    networks:
+      - bersaj_network
+
+  # =====================================================================
+  # 2. MONOLITO CENTRAL (Django Core) - Checkout, UI, Adapter & i18n
+  # =====================================================================
+  django_web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: bersaj_django_core
+    command: >
+      sh -c "python manage.py migrate --noinput &&
+             python manage.py runserver 0.0.0.0:8000"
+    environment:
+      - DEBUG=True
+      - SECRET_KEY=bersaj-secret-key-aws-2026-production
+      - EMAIL_MODE=CELERY
+      - USE_CATALOG_MICROSERVICE=true
+      - CATALOG_SERVICE_URL=http://flask_catalog:5001
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - EXCHANGE_API_MODE=REAL
+      - ALLY_SERVICE_URL=http://fake-ally-service
+    depends_on:
+      - redis
+      - flask_catalog
+    restart: unless-stopped
+    networks:
+      - bersaj_network
+
+  # =====================================================================
+  # 3. MICROSERVICIO DE CATÁLOGO E INVENTARIO (Flask - Strangler Pattern)
+  # =====================================================================
+  flask_catalog:
+    build:
+      context: ./services/catalog_service
+      dockerfile: Dockerfile
+    container_name: bersaj_flask_catalog
+    environment:
+      - PORT=5001
+    restart: unless-stopped
+    networks:
+      - bersaj_network
+
+  # =====================================================================
+  # 4. MESSAGE BROKER (Redis) - Comunicación Asíncrona
+  # =====================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: bersaj_redis_broker
+    restart: unless-stopped
+    networks:
+      - bersaj_network
+
+  # =====================================================================
+  # 5. ASYNC WORKER (Celery) - Resiliencia y Procesos en Background
+  # =====================================================================
+  celery_worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: bersaj_celery_worker
+    command: celery -A ecommerce worker -l info
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - EMAIL_MODE=REAL
+    depends_on:
+      - redis
+      - django_web
+    restart: unless-stopped
+    networks:
+      - bersaj_network
+
+networks:
+  bersaj_network:
+    driver: bridge
