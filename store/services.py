@@ -4,11 +4,14 @@ from .exceptions import (
     RecursoNoEncontradoError,
     ConflictoInventarioError,
 )
+from .infra.catalog_client import CatalogGatewayFactory
+
 
 class CheckoutService:
 
-    def __init__(self, notification_service):
+    def __init__(self, notification_service, catalog_gateway=None):
         self.notification_service = notification_service
+        self.catalog_gateway = catalog_gateway or CatalogGatewayFactory.get_gateway()
 
     def procesar_compra(self, datos):
         cliente_id = datos.get("cliente_id")
@@ -27,7 +30,7 @@ class CheckoutService:
 
         try:
             builder = (
-                PedidoBuilder()
+                PedidoBuilder(catalog_gateway=self.catalog_gateway)
                 .asignar_cliente(cliente)
                 .asignar_direccion(direccion)
                 .agregar_prendas(items)
@@ -41,15 +44,18 @@ class CheckoutService:
 
         pedido.save()
 
-        for talla, cantidad in items_data:
+        items_to_discount = []
+        for item_info, cantidad in items_data:
             ItemPedido.objects.create(
                 pedido=pedido,
-                talla=talla,
+                talla_id=item_info["talla_id"],
                 cantidad=cantidad,
-                precio_unitario=talla.producto.precio,
+                precio_unitario=item_info["precio"],
             )
-            talla.stock -= cantidad
-            talla.save()
+            items_to_discount.append((item_info["talla_id"], cantidad))
+
+        # Atomic stock deduction via Gateway (Strangler Pattern)
+        self.catalog_gateway.descontar_stock(items_to_discount)
 
         pedido.calcular_total()
         pedido.save()

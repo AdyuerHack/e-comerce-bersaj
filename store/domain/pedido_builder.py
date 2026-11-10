@@ -4,17 +4,19 @@ from ..exceptions import (
     RecursoNoEncontradoError,
     ConflictoInventarioError,
 )
-
-from store.models import Pedido, Talla
+from store.infra.catalog_client import CatalogGatewayFactory
+from store.models import Pedido
 
 COSTO_ENVIO_BASE = Decimal("8000.00")
 
 
 class PedidoBuilder:
     """Construye un Pedido paso a paso, validando reglas de negocio antes
-    de permitir su persistencia (.build())."""
+    de permitir su persistencia (.build()). Soporta desacoplamiento mediante
+    CatalogGateway (Strangler Pattern)."""
 
-    def __init__(self):
+    def __init__(self, catalog_gateway=None):
+        self.catalog_gateway = catalog_gateway or CatalogGatewayFactory.get_gateway()
         self.pedido = Pedido()
         self._items_data = []
         self._total = Decimal("0.00")
@@ -28,19 +30,15 @@ class PedidoBuilder:
         return self
 
     def agregar_prenda(self, talla_id, cantidad):
-        try:
-            talla = Talla.objects.select_related("producto").get(pk=talla_id)
-        except Talla.DoesNotExist:
-            raise RecursoNoEncontradoError(
-                f"La talla con id {talla_id} no existe."
-            )
+        info = self.catalog_gateway.obtener_talla_info(talla_id)
 
-        if not talla.tiene_stock(cantidad):
+        if info["stock"] < cantidad:
+            nombre = info.get("producto_nombre", "Producto")
             raise ConflictoInventarioError(
-                f"Stock insuficiente para {talla}. Disponible: {talla.stock}."
+                f"Stock insuficiente para {nombre} - {info['talla']}. Disponible: {info['stock']}."
             )
 
-        self._items_data.append((talla, cantidad))
+        self._items_data.append((info, cantidad))
         return self
 
     def agregar_prendas(self, items):
@@ -50,7 +48,7 @@ class PedidoBuilder:
 
     def calcular_envio_y_total(self):
         subtotal = sum(
-            (talla.producto.precio * cantidad for talla, cantidad in self._items_data),
+            (item_info["precio"] * cantidad for item_info, cantidad in self._items_data),
             Decimal("0.00"),
         )
         self._envio = COSTO_ENVIO_BASE if subtotal > 0 else Decimal("0.00")
