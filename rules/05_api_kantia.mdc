@@ -1,0 +1,128 @@
+---
+description: Reglas para la API REST de Kantia – endpoints, payloads, autenticación y contratos.
+globs: controllers/*.py,services/*.py
+---
+# Reglas de API REST – Kantia Integration
+
+## Endpoints Registrados
+
+| Método | Ruta | Función |
+|--------|------|---------|
+| POST | `/api/v1/kantia/invoice` | Crear factura |
+| POST | `/api/v1/kantia/credit_note` | Crear nota de crédito |
+| POST | `/api/v1/kantia/debit_note` | Crear nota de débito |
+| GET | `/api/v1/kantia/invoice/<id_factura>` | Consultar estado de factura por id_factura Kantia |
+| GET | `/api/v1/kantia/invoice/<id_factura>/archivos` | Descargar PDFs y XML |
+| GET | `/api/v1/kantia/credit_note/<id>` | Consultar NC |
+| GET | `/api/v1/kantia/credit_note/<id>/archivos` | Descargar archivos NC |
+| GET | `/api/v1/kantia/debit_note/<id>` | Consultar ND |
+| GET | `/api/v1/kantia/debit_note/<id>/archivos` | Descargar archivos ND |
+
+## Decorador HTTP Estándar
+
+Todos los endpoints usan:
+```python
+@http.route('/api/v1/kantia/...', type='http', auth='public', methods=['POST'], csrf=False)
+```
+- `type='http'` (NO JSON-RPC). Se parsea manualmente el body con `json.loads(request.httprequest.data)`.
+- `auth='public'` con autenticación manual por API Key en el header `X-API-Key`.
+- `csrf=False` (necesario para APIs externas).
+- **Sin `cors='*'`** desde v18.0.4.0.6 — integración server-to-server; CORS en AWS APIM si aplica.
+
+## Autenticación (orden en `_handle_endpoint`)
+
+1. Rate limiting (opcional, `kantia.rate_limit_enabled`)
+2. `X-API-Key` — `secrets.compare_digest`
+3. `X-Gateway-Secret` — solo si `kantia.gateway_secret` está configurado
+4. IP whitelist — `kantia.allowed_ips` (vacío = sin restricción)
+5. Usuario técnico `kantia_api@integration` — HTTP 503 si falta
+
+## Campos Obligatorios por Endpoint
+
+### Factura (`/invoice`)
+Raíz: `id_factura`, `cliente`, `lineas`, `fecha_emision`, `moneda`, `codigo_termino`
+Cliente: `documento_identidad`, `nombre`, `tipo_documento`
+Líneas: `codigo_producto`, `cantidad`, `precio_unitario`
+Opcionales recomendados por línea: `tipo_impuesto`, `porcentaje_impuesto`, `unidad_medida`, `descripcion`
+Alias legacy por línea: `codigo_impuesto_sunat` (`10`=IGV, `20`=Exonerado, `30`=Inafecto)
+Opcional cabecera: `tipo_comprobante` (default `01`), `observaciones`, `glose`, `fose`
+
+**Moneda:** la define Kantia en `moneda` (PEN/USD). La factura se crea en esa moneda.
+
+**Moneda extranjera** (cuando `moneda` ≠ moneda funcional de la compañía, ej. USD):
+- `tipo_cambio` (obligatorio)
+- `fecha_tipo_cambio` (obligatorio)
+
+### Nota de Crédito (`/credit_note`)
+`id_nota_credito`, `codigo_motivo_sunat`, `id_factura_origen`
+Opcionales: `tipo_comprobante_origen`, `lineas` (parciales validadas contra saldo origen), `observaciones`, `moneda`, `tipo_cambio`, `fecha_tipo_cambio`
+Idempotencia: reenviar el mismo `id_nota_credito` retorna la NC existente.
+
+### Nota de Débito (`/debit_note`)
+`id_nota_debito`, `codigo_motivo_sunat`, `id_factura_origen`
+Opcionales: `tipo_comprobante_origen`, `lineas`, `observaciones`, `moneda`, `tipo_cambio`, `fecha_tipo_cambio`
+Idempotencia: reenviar el mismo `id_nota_debito` retorna la ND existente.
+
+## Ejemplos de Payload
+
+Ver archivos en `data/`:
+- `kantia_payload_example.json` — Factura USD con tributación por línea
+- `kantia_payload_nc_example.json` — NC parcial
+- `kantia_payload_nd_example.json` — ND con líneas propias
+
+## Formato de Respuestas
+
+### Éxito (HTTP 200)
+```json
+{
+    "status": "success",
+    "message": "Factura procesada correctamente",
+    "data": {
+        "id_factura_kantia": "F001-00000001",
+        "invoice_id": 42,
+        "invoice_number": "F001-00000001",
+        "state": "posted"
+    }
+}
+```
+
+### Error (HTTP 400/401/404/500)
+```json
+{
+    "status": "error",
+    "error_code": "MISSING_FIELDS",
+    "message": "Faltan campos obligatorios en el payload: id_factura, cliente"
+}
+```
+
+### Códigos de Error Definidos
+- `INVALID_JSON` (400): Body no es JSON válido.
+- `MISSING_FIELDS` (400): Faltan campos obligatorios (incluye tipo_cambio/fecha_tipo_cambio en USD).
+- `EMPTY_LINES` (400): Sin líneas de factura.
+- `VALIDATION_ERROR` (400): Error de validación de negocio (UserError).
+- `BUSINESS_ERROR` (400): Error del servicio de negocio.
+- `UNAUTHORIZED` (401): API Key / Gateway Secret inválido o IP no permitida.
+- `RATE_LIMIT_EXCEEDED` (429): Demasiadas peticiones por minuto.
+- `API_USER_NOT_CONFIGURED` (503): Sin usuario técnico API.
+- `NOT_FOUND` (404): Comprobante no encontrado por ID.
+- `INTERNAL_ERROR` (500): Error inesperado del servidor.
+
+## Patrón de Controlador
+
+Todo endpoint sigue el patrón `_handle_endpoint(label, handler_fn)`:
+1. Generar `request_id`
+2. Rate limit (`_check_rate_limit`)
+3. Autenticar request (`_authenticate_request()`)
+4. Resolver entorno usuario API (`_get_kantia_business_env`)
+5. Ejecutar handler en try/except
+6. Capturar `UserError`/`ValidationError` → 400
+7. Capturar `Exception` genérica → 500
+8. Registrar en `kantia.api.log` automáticamente
+
+## Reglas al Agregar Nuevos Endpoints
+
+1. Seguir la convención de versionado en URL: `/api/v1/kantia/...`
+2. Crear constante para los campos obligatorios (ej. `REQUIRED_DEBIT_NOTE_FIELDS`).
+3. Registrar un handler `_handle()` interno que retorne un `Response`.
+4. Delegar TODA la lógica al servicio (`_get_service()`).
+5. Agregar los endpoints GET correspondientes para consulta y archivos.

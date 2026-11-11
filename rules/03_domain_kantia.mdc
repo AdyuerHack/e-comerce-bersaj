@@ -1,0 +1,76 @@
+---
+description: Reglas de negocio, lógica fiscal y dominio específico para la integración Kantia-Odoo (Facturación Electrónica Perú).
+globs: *.*
+---
+# Contexto Específico: Módulo de Integración Kantia – Facturación Electrónica Perú
+
+Al trabajar en la lógica de facturación Kantia, aplica obligatoriamente estas reglas de dominio:
+
+## Flujo de Negocio (Event-Driven)
+
+1. **Kantia** (sistema externo de gestión de Clientes Libres del sector eléctrico) envía una liquidación vía API REST.
+2. El **controlador HTTP** recibe, autentica (API Key + IP) y valida el payload.
+3. El **servicio** busca/crea el partner por RUC, construye la factura `account.move`, la publica (`action_post`), y fuerza la sincronización EDI con SUNAT.
+4. Se retorna un JSON con el `invoice_number`, `state`, y los IDs de Kantia.
+5. En un segundo request (endpoint `/archivos`), Kantia descarga los PDFs (PEN y USD) y el XML firmado.
+
+## Documentos Soportados
+
+| Tipo | Código SUNAT | Endpoint | move_type |
+|------|-------------|----------|-----------|
+| Factura | `01` | `/api/v1/kantia/invoice` | `out_invoice` |
+| Boleta | `03` | `/api/v1/kantia/invoice` | `out_invoice` |
+| Nota de Crédito | `07` | `/api/v1/kantia/credit_note` | `out_refund` |
+| Nota de Débito | `08` | `/api/v1/kantia/debit_note` | `out_invoice` |
+
+## Moneda Dual (PEN/USD)
+
+- El módulo soporta facturas en PEN y USD.
+- Cada factura tiene una **moneda secundaria** calculada automáticamente:
+  - Si la factura es en PEN → secundaria es USD.
+  - Si la factura es en USD → secundaria es PEN.
+- El tipo de cambio se recibe desde Kantia (`tipo_cambio`) y se aplica al campo `l10n_pe_currency_rate` de la localización peruana.
+- Los campos `kantia_amount_*_secondary` calculan los montos en la moneda alterna.
+
+## Campos Críticos en account.move
+
+| Campo | Tipo | Propósito |
+|-------|------|-----------|
+| `pgm_kantia_external_id` | Char | ID de la liquidación padre en Kantia. Puede repetirse (N facturas por liquidación). |
+| `kantia_invoice_id` | Char (UNIQUE) | ID único de la factura en Kantia. Garantiza idempotencia. |
+| `kantia_exchange_rate` | Float (computed) | Tipo de cambio calculado PEN↔USD. |
+| `kantia_secondary_currency_id` | Many2one (computed) | La moneda alterna (PEN o USD). |
+| `kantia_amount_*_secondary` | Monetary (computed) | Montos convertidos: subtotal, impuestos, total, bases gravadas/exoneradas/inafectas/gratuitas. |
+| `kantia_amount_text_secondary` | Char (computed) | Total en letras para el PDF secundario (usa `num2words`). |
+
+## Campos en account.move.line
+
+| Campo | Tipo | Propósito |
+|-------|------|-----------|
+| `kantia_price_unit_secondary` | Monetary (computed) | Precio unitario convertido a moneda secundaria. |
+| `kantia_price_subtotal_secondary` | Monetary (computed) | Subtotal de línea convertido a moneda secundaria. |
+
+## Campos en res.partner
+
+| Campo | Tipo | Propósito |
+|-------|------|-----------|
+| `is_kantia_client` | Boolean | Identifica clientes creados automáticamente desde la API de Kantia. |
+
+## Mapeo de Unidades de Medida SUNAT
+
+El servicio mapea códigos SUNAT a UoMs de Odoo:
+- `KWH` → Kilovatios hora
+- `NIU` → Unidades
+- `ZZ` → Servicios (no definido)
+
+Si la UoM resuelta no es compatible con la categoría del producto, se ignora y se usa la UoM del producto.
+
+## Errores Conocidos y Lecciones Aprendidas
+
+Basado en el historial de 50+ commits del módulo:
+
+1. **Bug de date_maturity:** Al crear `account.move` con `invoice_payment_term_id`, Odoo 18 sobreescribe `date_maturity` en cascada. Solución: usar `_patch_due_dates()` post-create.
+2. **Cuentas receivable en impuestos:** Algunas cuentas de repartición de impuestos tenían `account_type = receivable` lo que causa errores. Solución: `_fix_tax_accounts()` las corrige al vuelo.
+3. **Compañías incompatibles:** En entornos multi-compañía, filtrar siempre impuestos por `company_id` y cuentas por `company_ids`.
+4. **EDI sync:** No confiar en el cron de EDI; forzar sincronización síncrona con `_force_edi_sync()`.
+5. **`<tree>` deprecado:** En Odoo 18 usar `<list>` siempre.

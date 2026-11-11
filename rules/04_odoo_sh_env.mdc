@@ -1,0 +1,42 @@
+---
+description: Reglas y contexto específico para el entorno de despliegue Odoo.sh – Proyecto GCCDB (SUMMA-SCI).
+globs: *.*
+---
+# Entorno de Despliegue: Odoo.sh
+
+Este proyecto está alojado y se despliega usando la plataforma PaaS **Odoo.sh**.
+- **Proyecto / Repositorio:** `gccdb` (SUMMA-SCI/gccdb).
+- **Ramas de Trabajo:**
+  - `main` → Producción (18.0)
+  - `pruebas-gcc-05-05` → Staging (integración Kantia activa)
+  - `Pruebas-gcc-28-05` → Staging (rama de desarrollo actual)
+  - `pruebas-gcc-v3` → Development
+
+## Reglas Críticas para la IA (Entorno PaaS)
+
+- **NUNCA sugieras comandos del Sistema Operativo (`sudo apt-get`, `systemctl`, etc.).** Odoo.sh es un entorno administrado donde no tenemos permisos de superusuario. Toda solución debe darse a nivel de código Python, vistas XML o configuración nativa de Odoo.
+- **Librerías Python:** Si sugieres importar una nueva librería de Python (ej. `num2words`, `phonenumbers`), DEBES indicarle explícitamente al usuario que la agregue al archivo `requirements.txt` en la raíz del repositorio, ya que en Odoo.sh no se hace `pip install` manualmente por terminal. Actualmente `requirements.txt` solo contiene `aiohttp==3.13.1`.
+- **Troubleshooting (Tracebacks):** Si ocurre un error 500 en Staging o Producción, asume que el usuario proporcionará el volcado del archivo `odoo.log` extraído de la consola de Odoo.sh. Usa esos logs como fuente única de verdad para hacer ingeniería inversa del error.
+- **Shell de Odoo.sh:** Disponible para operaciones de emergencia vía la interfaz web (pestaña SHELL). Usar solo para inspeccionar datos, NUNCA para instalar paquetes.
+
+## Convenciones de Commits (Git)
+
+Basado en el historial del repositorio, SIEMPRE que sugieras un mensaje de commit, utiliza los prefijos estándar de Odoo seguidos del nombre del módulo `l10n_pe_kantia_integration`:
+
+- `[FIX] l10n_pe_kantia_integration: descripción del arreglo` (Para corrección de errores).
+- `[IMP] l10n_pe_kantia_integration: descripción de la mejora` (Para mejoras en funcionalidades existentes).
+- `[ADD] l10n_pe_kantia_integration: descripción de lo agregado` (Para nuevas características o archivos).
+- `[REF] l10n_pe_kantia_integration: descripción del refactor` (Para refactorización sin cambio funcional).
+
+### Prefijo histórico alternativo (también aceptado):
+- `[kantia] Descripción del cambio`
+
+## Otros Módulos en el Repositorio
+
+Este repositorio contiene ~35 módulos. Los relevantes para Kantia son:
+- `l10n_pe_edi` → Facturación electrónica SUNAT (dependencia directa).
+- `l10n_pe_edi_stock` → Guías de remisión EDI.
+- `extended_fields` → Campos personalizados adicionales.
+- `odoo_invoicing` → Personalización de facturación.
+
+**NUNCA modificar código de estos módulos** al trabajar en `l10n_pe_kantia_integration`. Si necesitas extender funcionalidad de otro módulo, hazlo por herencia (`_inherit`) dentro de tu propio módulo.

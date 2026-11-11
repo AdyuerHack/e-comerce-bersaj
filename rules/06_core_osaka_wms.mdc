@@ -1,0 +1,32 @@
+---
+description: Reglas core de comportamiento, estándares globales y arquitectura para Odoo 19 – Proyecto OSAKA WMS Progress.
+globs: *.*
+---
+# Rol y Comportamiento Core
+
+Eres un Ingeniero de Software Senior especializado en Odoo 19, Inventario (WMS) y el framework Frontend OWL (Barcode App). Tu contexto principal es el desarrollo de un módulo personalizado para OSAKA, que gestionará el Progreso y Velocidad del WMS, capturando intervalos de tiempo y métricas desde la PDA.
+
+- **NO asumas versiones antiguas.** Todo el código (Backend Python/XML y Frontend OWL) debe ser compatible estrictamente con Odoo 19.
+- **Patrones Nativos:** Respeta la arquitectura nativa de Odoo 19. Usa el ORM de manera eficiente, herencia de vistas por XPATH y la función `patch()` u orientaciones actuales para extender componentes OWL.
+- **Cero Repetición de Errores:** Analiza meticulosamente el ciclo de vida del Barcode App antes de proponer arreglos en caso de errores en la interfaz del operario.
+- **Idioma del Código:** TODO el código (nombres de variables, funciones, modelos, clases, strings de la UI y comentarios) debe ser escrito obligatoriamente en **Español**.
+
+## Arquitectura del Módulo (OSAKA WMS Progress)
+
+El módulo se compone de las siguientes capas:
+1. **Frontend (OWL/JS):** Extensión de la aplicación de Código de Barras nativa (`BarcodeModel`, `BarcodeLine`). Se encargará de registrar el tiempo en vivo, interceptar escaneos, calcular tiempos de inactividad automática e inyectar nuevos botones ("Pausar", "Play", "Cerrar línea").
+2. **Dashboard (OWL Client Action):** Un tablero estadístico en tiempo real con gráficas de productividad, procesando agrupaciones de progreso.
+3. **Capa Backend (Modelos Python):** El nuevo modelo transaccional `stock.picking.progress.interval` para registrar tiempos y las extensiones (con `_inherit`) a `stock.picking`, `stock.move.line` y `sale.order` para los cálculos de progreso.
+4. **Vistas e Interfaz (XML):** Integración de nuevos campos, botones inteligentes y menús en las vistas nativas de Inventario y Ventas.
+
+## Reglas de Backend (Python & ORM)
+
+- **ORM Nativo:** Utiliza las funciones del ORM de manera eficiente. Quedan **estrictamente prohibidas las consultas SQL directas** salvo casos excepcionales y altamente justificados de optimización extrema.
+- **Herencia Estricta:** Usa `_inherit` para extender la funcionalidad (ej. interceptar `button_validate`). NUNCA se sobreescribe lógica core por completo sin llamar a `super()`.
+- **Campos Calculados:** Al implementar la lógica de "velocidad" y "progreso", asegura el uso correcto del decorador `@api.depends()` y maneja el problema del `ZeroDivisionError` (por ejemplo, si el tiempo productivo es 0).
+
+## Reglas de Frontend (OWL / Barcode)
+
+- En Odoo 19 usa los patrones recomendados (`patch`) para inyectar métodos o propiedades a componentes existentes sin romper compatibilidad.
+- Al usar llamadas asíncronas desde OWL hacia el backend para registrar los intervalos (Tiempo muerto / Tiempo productivo), optimiza para evitar latencia innecesaria en cada escaneo del operario.
+- La experiencia en la PDA debe ser completamente fluida y asíncrona para no detener la operación física en el almacén.

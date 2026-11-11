@@ -1,0 +1,41 @@
+---
+description: Reglas para las vistas, datos XML y reportes QWeb en Odoo 18 – módulo l10n_pe_kantia_integration.
+globs: *.xml
+---
+# Reglas Estrictas de Vistas y XML (Odoo 18 – Kantia)
+
+- **NUNCA usar `attrs`.** En Odoo 18 los `attrs` están deprecados. Usa directamente expresiones de Python en los nodos XML: 
+  - `invisible="estado == 'borrador'"`
+  - `readonly="is_paid == True"`
+  - `required="amount > 0"`
+- **NUNCA usar `tree`.** En Odoo 18, la vista de lista se define con `<list>`, no con `<tree>`. Esto ya fue corregido en commit `23c542b`.
+- **Herencia XML:** Usa SIEMPRE `<xpath expr="..." position="...">`. NUNCA reescribas una vista completa original para cambiar un solo campo.
+- **Campos Relacionales:** Evita cargar tablas completas en la UI; usa `options="{'no_create': True, 'no_open': True}"` donde aplique.
+
+## Vistas Existentes del Módulo
+
+### `account_move_views.xml`
+Extiende la vista de factura (`account.view_move_form`) para agregar los campos `pgm_kantia_external_id` y `kantia_invoice_id` como campos readonly en un grupo dedicado "Integración Kantia".
+
+### `res_partner_views.xml`
+Extiende la vista de contacto para mostrar el campo booleano `is_kantia_client` (Es Cliente Kantia).
+
+### `kantia_api_log_views.xml`
+Vista completa (list + form) del modelo `kantia.api.log` para visualizar trazabilidad de peticiones API. Incluye link directo a la factura generada (`move_id`).
+
+## Reportes QWeb (Moneda Dual)
+
+### `report_kantia_usd.xml`
+Reporte PDF alternativo en dólares (USD). Usa los campos computados `kantia_amount_*_secondary` y `kantia_price_unit_secondary` de las líneas de factura.
+- **Acción de reporte:** `l10n_pe_kantia_integration.action_report_kantia_invoice_usd`
+- Incluye desglose de bases imponibles: Gravadas, Exoneradas, Inafectas, Gratuitas.
+- Incluye monto en letras dinámico desde `kantia_amount_text_secondary`.
+
+### `report_invoice_document.xml`
+Personalización de la representación impresa estándar de la factura en soles (PEN).
+
+### Reglas para Reportes QWeb
+- Usar `t-field` para campos monetarios (renderiza automáticamente la moneda).
+- Para campos computados usar `t-esc` con formato explícito si es necesario.
+- Los estilos CSS del reporte van inline o en un `<style>` dentro del template.
+- Respetar la estética del comprobante SUNAT: cuadro de totales, desglose de bases, monto en letras.
