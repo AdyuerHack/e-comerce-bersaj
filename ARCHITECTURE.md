@@ -14,57 +14,83 @@ La lógica del **Catálogo de Productos e Inventario** ha sido estrangulada y ex
 
 ```mermaid
 flowchart TD
-    Client["Navegador Web / Cliente API / Equipo Aliado"]
+    Client["🌐 Cliente Web / Navegador / API Aliado<br><i>(Punto de Entrada Externo)</i>"]
 
-    subgraph AWS["Instancia EC2 AWS Academy (IP Elástica)"]
-        subgraph Gateway["Capa de Enrutamiento & Ingress"]
-            Nginx["Nginx API Gateway (:80)<br>Reverse Proxy & Traffic Router"]
+    subgraph AWS["☁️ Servidor AWS EC2 (IP Elástica :80 | Red bersaj_network)"]
+        
+        subgraph Gateway["1. Capa Ingress & Enrutamiento de Tráfico"]
+            Nginx["🚪 Nginx API Gateway (:80)<br>• Reverse Proxy Central<br>• Enrutador Ingress<br>• Timeouts & Headers Trazabilidad"]
         end
 
-        subgraph Core["Monolito Residual - Django Core (:8000)"]
-            DjangoViews["Vistas Web & DRF APIView"]
-            CheckoutSvc["CheckoutService & PedidoBuilder"]
-            CatalogClient["CatalogGateway (Strangler Pattern)"]
-            AdapterDIP["CurrencyExchangePort (DIP)"]
-            AllyClient["AllyServiceClient"]
-            i18n["gettext i18n Engine (ES / EN)"]
-            DjangoDB[("SQLite db.sqlite3<br>Clientes, Direcciones, Pedidos")]
+        subgraph Core["2. Monolito Residual - Django Core (:8000)"]
+            DjangoViews["🖥️ Capa de Presentación (UI & DRF)<br>• Vistas Web Bootstrap 5<br>• Motor i18n gettext (ES/EN)"]
+            CheckoutSvc["⚙️ CheckoutService (Service Layer)<br>• Orquestador de Compra<br>• Transacción Atómica ACID"]
+            Builder["🏗️ PedidoBuilder (Builder Pattern)<br>• Validación de Reglas de Negocio"]
+            CatalogClient["🔌 CatalogGateway (Strangler Pattern)<br>• LocalCatalogAdapter / HttpAdapter"]
+            AdapterDIP["💱 CurrencyExchangePort (DIP)<br>• OpenExchangeRateAdapter con Fallback"]
+            AllyClient["🤝 AllyServiceClient<br>• Integración con Equipo Aliado"]
+            DjangoDB[("💾 SQLite: db.sqlite3<br>Clientes, Direcciones, Pedidos")]
+            
+            DjangoViews --> CheckoutSvc
+            CheckoutSvc --> Builder
+            CheckoutSvc --> CatalogClient
+            CheckoutSvc --> DjangoDB
+            DjangoViews --> AdapterDIP
+            DjangoViews --> AllyClient
         end
 
-        subgraph Microservice["Microservicio Independiente - Flask (:5001)"]
-            FlaskAPI["Flask REST API"]
-            CatalogEngine["Lógica de Stock & Precios"]
-            PublicAPI["Servicio a Proveer (/api/v1/public/catalog)"]
-            CatalogDB[("SQLite catalog.db<br>Productos y Tallas")]
+        subgraph Microservice["3. Microservicio Independiente - Flask (:5001)"]
+            FlaskAPI["⚡ Flask REST API Engine<br>• Catálogo & Inventario"]
+            CatalogEngine["📦 Lógica de Stock Atómico<br>• Verificación & Deducción"]
+            PublicAPI["📢 Endpoint a Proveer (Req 2.3)<br>• GET /api/v1/public/catalog"]
+            CatalogDB[("💾 SQLite: catalog.db<br>Productos y Tallas Desacopladas")]
+
+            FlaskAPI --> CatalogEngine
+            FlaskAPI --> PublicAPI
+            CatalogEngine --> CatalogDB
         end
 
-        subgraph Asynchronous["Capa de Resiliencia y Asincronía"]
-            Redis[("Redis Message Broker (:6379)")]
-            CeleryWorker["Celery Worker<br>Tareas en Background"]
+        subgraph Asynchronous["4. Capa de Resiliencia & Tareas Asíncronas"]
+            Redis[("⚡ Redis Message Broker (:6379)<br>Cola de Mensajes en Memoria")]
+            CeleryWorker["⚙️ Celery Worker<br>• enviar_confirmacion_asincrona.delay()<br>• Graceful Degradation"]
+            Redis --> CeleryWorker
         end
     end
 
-    subgraph External["Ecosistema Externo"]
-        ThirdPartyAPI["API Externa Divisas<br>(open.er-api.com)"]
-        AllyAPI["API del Equipo Aliado"]
+    subgraph External["5. Ecosistema Externo"]
+        ThirdPartyAPI["🌍 API de Divisas Terceros<br>(https://open.er-api.com/v6/latest/USD)"]
+        AllyAPI["🤝 API Remota del Equipo Aliado<br>(/api/v1/public/catalog)"]
     end
 
-    %% Flujos de Red
-    Client -->|HTTP :80| Nginx
-    Nginx -->|"/api/v1/products, /api/v1/public"| FlaskAPI
-    Nginx -->|"/, /tienda, /api/v1/checkout"| DjangoViews
+    %% Flujos de Red Principales
+    Client -->|"HTTP Request (:80)"| Nginx
+    Nginx -->|"/, /tienda/*, /checkout/"| DjangoViews
+    Nginx -->|"/api/v1/products, /api/v1/public/*, /api/v1/inventory/*"| FlaskAPI
 
-    CatalogClient -.->|"HTTP REST Interno (:5001)"| FlaskAPI
-    CheckoutSvc --> CatalogClient
-    CheckoutSvc --> DjangoDB
-    CheckoutSvc -->|Dispara Evento| Redis
-    Redis --> CeleryWorker
+    %% Comunicación entre Microservicios (Strangler Fig)
+    CatalogClient -.->|"HTTP REST Interno (:5001)<br>Descuento Atómico de Stock"| FlaskAPI
 
-    AdapterDIP -->|HTTP JSON| ThirdPartyAPI
-    AllyClient -->|HTTP JSON| AllyAPI
+    %% Desacoplamiento Asíncrono
+    CheckoutSvc -->|"Encola Evento sin Bloqueo HTTP"| Redis
 
-    FlaskAPI --> CatalogEngine
-    CatalogEngine --> CatalogDB
+    %% Integraciones Externas
+    AdapterDIP -->|"HTTP GET (USD a COP)<br>Fallback contingente $4.200 COP"| ThirdPartyAPI
+    AllyClient -->|"HTTP GET Catálogo Aliado<br>Fallback Resiliente Activo"| AllyAPI
+
+    %% Estilos de Nodos
+    classDef nginxStyle fill:#059669,stroke:#047857,stroke-width:2px,color:#ffffff;
+    classDef djangoStyle fill:#0284c7,stroke:#0369a1,stroke-width:2px,color:#ffffff;
+    classDef flaskStyle fill:#d97706,stroke:#b45309,stroke-width:2px,color:#ffffff;
+    classDef asyncStyle fill:#dc2626,stroke:#b91c1c,stroke-width:2px,color:#ffffff;
+    classDef extStyle fill:#4b5563,stroke:#374151,stroke-width:2px,color:#ffffff;
+    classDef clientStyle fill:#4338ca,stroke:#3730a3,stroke-width:2px,color:#ffffff;
+
+    class Nginx nginxStyle;
+    class DjangoViews,CheckoutSvc,Builder,CatalogClient,AdapterDIP,AllyClient,DjangoDB djangoStyle;
+    class FlaskAPI,CatalogEngine,PublicAPI,CatalogDB flaskStyle;
+    class Redis,CeleryWorker asyncStyle;
+    class ThirdPartyAPI,AllyAPI extStyle;
+    class Client clientStyle;
 ```
 
 ---
