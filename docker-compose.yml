@@ -29,15 +29,15 @@ services:
              python manage.py seed_data &&
              python manage.py runserver 0.0.0.0:8000"
     environment:
-      - DEBUG=True
-      - SECRET_KEY=bersaj-secret-key-aws-2026-production
-      - EMAIL_MODE=CELERY
-      - USE_CATALOG_MICROSERVICE=true
-      - CATALOG_SERVICE_URL=http://flask_catalog:5001
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
-      - EXCHANGE_API_MODE=REAL
-      - ALLY_SERVICE_URL=http://fake-ally-service
+      - DEBUG=${DEBUG:-True}
+      - SECRET_KEY=${SECRET_KEY:-bersaj-secret-key-aws-2026-production}
+      - EMAIL_MODE=${EMAIL_MODE:-CELERY}
+      - USE_CATALOG_MICROSERVICE=${USE_CATALOG_MICROSERVICE:-true}
+      - CATALOG_SERVICE_URL=${CATALOG_SERVICE_URL:-http://flask_catalog:5001}
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL:-redis://redis:6379/0}
+      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND:-redis://redis:6379/0}
+      - EXCHANGE_API_MODE=${EXCHANGE_API_MODE:-REAL}
+      - ALLY_SERVICE_URL=${ALLY_SERVICE_URL:-http://fake-ally-service}
     depends_on:
       - redis
       - flask_catalog

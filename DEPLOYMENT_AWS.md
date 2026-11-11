@@ -45,6 +45,27 @@ ssh -i /ruta/a/bersaj-key.pem ubuntu@<TU_IP_ELASTICA>
 
 ---
 
+### ⚡ Opción Rápida Recomendada: Despliegue en 1-Solo Comando (Script Automatizado)
+
+Una vez dentro de la terminal de la máquina virtual Ubuntu, ejecute:
+
+```bash
+git clone https://github.com/AdyuerHack/e-comerce-bersaj.git && cd e-comerce-bersaj && git checkout dev && chmod +x deploy.sh && ./deploy.sh
+```
+
+El script `deploy.sh` se encargará de **todo automáticamente**:
+1. Instala Docker y Docker Compose si no están presentes.
+2. Configura las variables de entorno `.env`.
+3. Construye y levanta los 5 contenedores en segundo plano.
+4. Ejecuta migraciones y carga inicial de datos (`seed_data`).
+5. Realiza healthchecks en vivo de todos los servicios.
+6. Detecta tu IP Elástica pública y te muestra en pantalla todos los enlaces listos para probar y sustentar.
+
+---
+
+### Opción Manual Paso a Paso (Alternativa)
+
+
 ### Paso 5: Instalar Docker y Docker Compose en la Instancia
 Ejecute los siguientes comandos en la terminal de la máquina virtual Ubuntu:
 
