@@ -27,12 +27,6 @@ class CheckoutView(APIView):
 
         datos = serializer.validated_data
 
-        # 1. Extraemos los datos validados
-        cliente = serializer.validated_data.get("cliente")
-        direccion = serializer.validated_data.get("direccion")
-        items_data = serializer.validated_data.get("items")
-
-        # 2. Composition Root: Preparamos dependencias (Factory)
         notification = NotificationFactory.create()
         service = CheckoutService(notification)
 
