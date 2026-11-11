@@ -5,14 +5,14 @@ Proyecto desarrollado para la asignatura **Arquitectura de Software 2026-I**
 
 ---
 
-## 👥 Autores
+##  Autores
 * **Adyuer De Jesus Ojeda Badel**
 * **Alejandro Cadavid Osorio**
 * **Santiago Lafont Díaz**
 
 ---
 
-## 🚀 Visión General del Proyecto (Entrega No. 2)
+##  Visión General del Proyecto (Entrega No. 2)
 
 El proyecto evoluciona de la arquitectura monolítica inicial hacia un **ecosistema distribuido, híbrido y resiliente**, aplicando los siguientes principios y patrones arquitectónicos:
 
@@ -26,7 +26,7 @@ El proyecto evoluciona de la arquitectura monolítica inicial hacia un **ecosist
 
 ---
 
-## 🏛️ Arquitectura del Sistema
+##  Arquitectura del Sistema
 
 ```
                        ┌────────────────────────────────────────┐
@@ -55,9 +55,11 @@ El proyecto evoluciona de la arquitectura monolítica inicial hacia un **ecosist
 
 Para consultar el diagrama C4 detallado y el flujo de secuencia, revise [**`ARCHITECTURE.md`**](ARCHITECTURE.md).
 
+Para documentación navegable del proyecto, consulte la [**Wiki de E-Commerce Bersaj**](Wiki.md).
+
 ---
 
-## 📂 Estructura del Repositorio
+##  Estructura del Repositorio
 
 ```text
 e-comerce-bersaj/
@@ -109,7 +111,7 @@ e-comerce-bersaj/
 
 ---
 
-## 🛠️ Ejecución Local con Docker Compose
+##  Ejecución Local con Docker Compose
 
 La forma recomendada de ejecutar todo el ecosistema con un solo comando:
 
@@ -126,7 +128,7 @@ Una vez levantado:
 
 ---
 
-## 🧪 Ejecución de Pruebas Automatizadas
+##  Ejecución de Pruebas Automatizadas
 
 El proyecto cuenta con **23 pruebas unitarias e integrales** que validan el 100% de los componentes:
 
@@ -140,6 +142,4 @@ pytest services/catalog_service/test_catalog.py
 
 ---
 
-## ☁️ Despliegue en AWS Academy EC2
 
-Para el despliegue en la nube con **IP Elástica** exigida en la rúbrica ABET, consulte la guía completa en [**`DEPLOYMENT_AWS.md`**](DEPLOYMENT_AWS.md).
