@@ -1,3 +1,4 @@
 # Forzar finales de línea LF para scripts de shell
 *.sh text eol=lf
 deploy.sh text eol=lf
+

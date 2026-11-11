@@ -143,3 +143,4 @@ echo -e "   • Reiniciar todos:            ${YELLOW}${DOCKER_COMPOSE} restart${
 echo -e "   • Detener contenedores:       ${YELLOW}${DOCKER_COMPOSE} down${NC}"
 echo ""
 echo -e "${GREEN}¡Todo listo para la entrega y sustentación!${NC}"
+
